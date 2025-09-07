@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attractive Chat System</title>
+  <style>
+    :root{
+      --bg:#0f172a;
+      --glass: rgba(255,255,255,0.08);
+      --accent:#6366f1;
+      --bot:#22d3ee;
+      --user:#a855f7;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{height:100vh;background:linear-gradient(135deg,#1e293b,#0f172a);color:#f8fafc;display:flex;justify-content:center;align-items:center}
+
+    .app{width:95%;max-width:1000px;height:90vh;display:grid;grid-template-columns:300px 1fr;gap:18px}
+
+    .sidebar{backdrop-filter:blur(16px);background:var(--glass);border-radius:20px;padding:16px;display:flex;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+    .logo{width:50px;height:50px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--bot));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:white}
+
+    .convos{flex:1;overflow:auto;display:flex;flex-direction:column;gap:10px}
+    .conv{padding:12px;border-radius:14px;cursor:pointer;background:rgba(255,255,255,0.03);transition:.25s;display:flex;gap:12px;align-items:center}
+    .conv:hover{background:rgba(255,255,255,0.1);transform:translateY(-2px)}
+    .conv.active{background:linear-gradient(135deg,rgba(124,58,237,.4),rgba(6,182,212,.4))}
+
+    .panel{backdrop-filter:blur(16px);background:var(--glass);border-radius:20px;padding:18px;display:flex;flex-direction:column;height:100%;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1)}
+    .chat-area{flex:1;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:6px}
+
+    .msg{max-width:70%;padding:12px 14px;border-radius:18px;line-height:1.4;position:relative;opacity:0;transform:translateY(20px);animation:fadeIn .4s forwards}
+    .msg.user{align-self:flex-end;background:linear-gradient(135deg,rgba(168,85,247,.7),rgba(99,102,241,.6));border-bottom-right-radius:4px}
+    .msg.bot{align-self:flex-start;background:linear-gradient(135deg,rgba(34,211,238,.7),rgba(6,182,212,.6));border-bottom-left-radius:4px}
+
+    @keyframes fadeIn{to{opacity:1;transform:translateY(0)}}
+
+    .composer{display:flex;gap:10px;margin-top:14px}
+    .input{flex:1;display:flex;align-items:center;background:rgba(255,255,255,0.08);padding:10px 14px;border-radius:14px}
+    .input input{flex:1;background:transparent;border:0;outline:none;color:white;font-size:15px}
+    button{width:50px;height:50px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--accent),var(--user));color:white;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,0.4);transition:.25s}
+    button:hover{transform:scale(1.1)}
+
+    .typing{font-size:13px;color:#cbd5e1;padding:6px 12px;background:rgba(255,255,255,0.06);border-radius:12px;align-self:flex-start;display:inline-flex;gap:4px}
+    .dot{width:6px;height:6px;border-radius:50%;background:#cbd5e1;animation:blink 1.2s infinite alternate}
+    .dot:nth-child(2){animation-delay:.2s}
+    .dot:nth-child(3){animation-delay:.4s}
+    @keyframes blink{from{opacity:.3}to{opacity:1}}
+
+    @media(max-width:880px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">CS</div>
+        <div>
+          <div style="font-weight:700;font-size:18px">ChatSystem</div>
+          <div style="font-size:13px;color:#cbd5e1">Attractive UI</div>
+        </div>
+      </div>
+      <div class="convos" id="convoList"></div>
+      <button id="newConv">＋</button>
+    </aside>
+
+    <main class="panel">
+      <div class="header">
+        <div id="chatTitle" style="font-weight:600;font-size:18px">Welcome</div>
+        <div id="chatSubtitle" style="font-size:13px;color:#cbd5e1">Start a conversation</div>
+      </div>
+      <div class="chat-area" id="chatArea"></div>
+      <div class="composer">
+        <div class="input"><input id="messageInput" placeholder="Type a message..." /></div>
+        <button id="sendBtn">➤</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const LS_KEY = 'attractive-chat';
+    let state = {convos:[],active:null};
+
+    const $ = s=>document.querySelector(s);
+
+    function load(){try{let raw=localStorage.getItem(LS_KEY);if(raw)state=JSON.parse(raw);}catch{}}
+    function save(){localStorage.setItem(LS_KEY,JSON.stringify(state));}
+
+    function newConvo(title){let c={id:Date.now()+"",title:title||'Chat',messages:[]};state.convos.unshift(c);state.active=c.id;save();render();}
+    function setActive(id){state.active=id;save();render();}
+
+    function addMessage(cid,from,text){let c=state.convos.find(x=>x.id===cid);if(!c)return;c.messages.push({from,text,ts:new Date().toISOString()});save();renderMessages(c);setTimeout(()=>$('#chatArea').scrollTop=$('#chatArea').scrollHeight,50);}
+
+    function sendMessage(){let input=$('#messageInput');let txt=input.value.trim();if(!txt)return;let id=state.active||(newConvo('Chat'),state.active);addMessage(id,'user',txt);input.value='';showTyping(true);setTimeout(()=>{showTyping(false);addMessage(id,'bot',botReply(txt));},1000);}
+
+    function botReply(t){t=t.toLowerCase();if(t.includes('hi'))return'Hello Fakhar Abbas! ✨';if(t.includes('time'))return new Date().toLocaleTimeString();return "Fakhar Abbas, you said: "+t;}
+
+    function render(){renderConvos();let a=state.convos.find(c=>c.id===state.active);if(a)renderMessages(a);else $('#chatArea').innerHTML='<div style="color:#94a3b8">No chat selected</div>'}
+    function renderConvos(){let el=$('#convoList');el.innerHTML='';state.convos.forEach(c=>{let d=document.createElement('div');d.className='conv'+(c.id===state.active?' active':'');d.innerHTML=`<div style=\"width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--user));display:flex;align-items:center;justify-content:center;font-weight:700\">${c.title[0]||'C'}</div><div><div style=\"font-weight:600\">${c.title}</div><div style=\"font-size:12px;color:#cbd5e1\">${c.messages[c.messages.length-1]?.text||''}</div></div>`;d.onclick=()=>setActive(c.id);el.appendChild(d);});}
+
+    function renderMessages(c){$('#chatTitle').textContent=c.title;$('#chatSubtitle').textContent=c.messages.length+' messages';let area=$('#chatArea');area.innerHTML='';c.messages.forEach(m=>{let d=document.createElement('div');d.className='msg '+m.from;d.innerHTML=m.text;area.appendChild(d);});}
+
+    let typingEl=null;function showTyping(b){let area=$('#chatArea');if(b){if(!typingEl){typingEl=document.createElement('div');typingEl.className='typing';typingEl.innerHTML='<div class="dot"></div><div class="dot"></div><div class="dot"></div>';area.appendChild(typingEl);area.scrollTop=area.scrollHeight;}}else{if(typingEl){typingEl.remove();typingEl=null;}}}
+
+    $('#sendBtn').onclick=sendMessage;$('#messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendMessage();}});
+    $('#newConv').onclick=()=>newConvo('Fakhar Abbas');
+
+    load();
+    if(!state.convos.length)newConvo('Fakhar Abbas');
+    render();
+  </script>
+</body>
+</html>
